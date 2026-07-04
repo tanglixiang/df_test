@@ -3,7 +3,7 @@ name: Scheduled Python Task
 on:
   # 1. 定时触发：使用 cron 表达式
   schedule:
-    - cron: '0 2 * * *'  # 每天凌晨 2:00 (UTC时间) 执行
+    - cron: '0 * * * *'  # 一个小时一次 执行
   # 2. 支持手动触发（强烈推荐，方便测试和紧急执行）
   workflow_dispatch:       
 
