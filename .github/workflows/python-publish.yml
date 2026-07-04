@@ -30,7 +30,7 @@ jobs:
 
       # 步骤 4：运行你的 Python 脚本
       - name: Run Python script
-        run: python your_script.py
+        run: python dl.py
 
       # 步骤 5：自动提交代码
       - name: Commit and push changes
