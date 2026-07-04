@@ -106,8 +106,8 @@ if __name__ == "__main__":
     print("程序已启动，等待整点触发... (按 Ctrl+C 停止)")
     fetch_and_save()
     
-    schedule.every().hour.at(":00").do(run_hourly)
+    # schedule.every().hour.at(":00").do(run_hourly)
     
-    while True:
-        schedule.run_pending()
-        time.sleep(1)
+    # while True:
+    #     schedule.run_pending()
+    #     time.sleep(1)
