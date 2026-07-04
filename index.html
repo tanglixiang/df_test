@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <!-- 移动端视口声明 -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>设备电量监控看板</title>
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            display: flex; 
+            flex-direction: column; 
+            align-items: center; 
+            padding: 20px; 
+            background: #f9f9f9; 
+            margin: 0; 
+        }
+        .controls { 
+            margin-bottom: 20px; 
+            display: flex; 
+            align-items: center; 
+            gap: 10px; 
+        }
+        button { 
+            padding: 10px 20px; 
+            font-size: 16px; 
+            border-radius: 6px; 
+            border: 1px solid #ccc; 
+            cursor: pointer; 
+            background: #fff; 
+            transition: 0.3s; 
+        }
+        button.active { 
+            background: #409eff; 
+            color: #fff; 
+            border-color: #409eff; 
+        }
+        #chart { 
+            width: 100%; 
+            max-width: 900px; 
+            height: 450px; 
+            background: #fff; 
+            border-radius: 8px; 
+            box-shadow: 0 2px 12px rgba(0,0,0,0.05); 
+        }
+
+        /* 移动端响应式适配 */
+        @media screen and (max-width: 600px) {
+            body { padding: 10px; }
+            .controls { gap: 8px; }
+            button { padding: 8px 15px; font-size: 14px; }
+            #chart { height: 300px; }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="controls">
+        <button id="btn1" class="active" onclick="switchDevice('11190261518546')">设备 1</button>
+        <button id="btn2" onclick="switchDevice('11190261518547')">设备 2</button>
+    </div>
+    <div id="chart"></div>
+
+    <script>
+        const FILES = {
+            '11190261518546': 'device_data/11190261518546.csv',
+            '11190261518547': 'device_data/11190261518547.csv'
+        };
+
+        const chartDom = document.getElementById('chart');
+        const myChart = echarts.init(chartDom);
+        let currentDevice = '11190261518546';
+
+        loadChartData(currentDevice);
+
+        function switchDevice(sn) {
+            currentDevice = sn;
+            document.getElementById('btn1').className = (sn === '11190261518546') ? 'active' : '';
+            document.getElementById('btn2').className = (sn === '11190261518547') ? 'active' : '';
+            loadChartData(sn);
+        }
+
+        function loadChartData(sn) {
+            fetch(FILES[sn])
+                .then(res => res.text())
+                .then(csvText => {
+                    // 【修复点】：正确拆分 CSV 数据
+                    const lines = csvText.trim().split('\n');
+                    const headers = lines[0].split(','); // 取第一行作为表头
+                    let data = lines.slice(1).map(line => line.split(',')); // 取剩余行作为数据
+                    
+                    const timeIdx = headers.indexOf('同步时间');
+                    const residualIdx = headers.indexOf('剩余电量');
+                    const usedIdx = headers.indexOf('已使用电量');
+                    
+                    // 1. 根据“同步时间”去重
+                    const uniqueMap = new Map();
+                    data.forEach(row => {
+                        if (row[timeIdx]) uniqueMap.set(row[timeIdx], row);
+                    });
+                    
+                    // 2. 取去重后的最后 30 条数据
+                    let uniqueData = Array.from(uniqueMap.values());
+                    const last30Data = uniqueData.slice(-30);
+                    
+                    const times = last30Data.map(row => row[timeIdx]);
+                    const residualValues = last30Data.map(row => parseFloat(row[residualIdx]));
+                    const usedValues = last30Data.map(row => parseFloat(row[usedIdx]));
+
+                    // 判断当前是否为手机端
+                    const isMobile = window.innerWidth <= 600;
+
+                    myChart.setOption({
+                        title: { 
+                            text: `设备趋势 - ${sn} (最近30条)`, 
+                            left: 'center', 
+                            top: 15, 
+                            textStyle: { fontSize: isMobile ? 14 : 16 } 
+                        },
+                        tooltip: { trigger: 'axis' },
+                        legend: { 
+                            data: ['剩余电量', '已使用电量'], 
+                            bottom: 10 
+                        },
+                        grid: {
+                            left: '3%',
+                            right: '4%',
+                            bottom: '15%', 
+                            top: isMobile ? '25%' : '20%', 
+                            containLabel: true 
+                        },
+                        xAxis: { 
+                            type: 'category', 
+                            data: times, 
+                            axisLabel: { 
+                                rotate: 30,
+                                fontSize: isMobile ? 10 : 12 
+                            } 
+                        },
+                        yAxis: { 
+                            type: 'value', 
+                            name: '电量',
+                            nameTextStyle: { fontSize: isMobile ? 10 : 12 }
+                        },
+                        series: [
+                            {
+                                name: '剩余电量',
+                                data: residualValues, 
+                                type: 'line', 
+                                smooth: true, 
+                                areaStyle: { opacity: 0.1 }, 
+                                itemStyle: { color: '#409eff' } 
+                            },
+                            {
+                                name: '已使用电量',
+                                data: usedValues, 
+                                type: 'line', 
+                                smooth: true, 
+                                areaStyle: { opacity: 0.1 }, 
+                                itemStyle: { color: '#67c23a' } 
+                            }
+                        ]
+                    });
+                })
+                .catch(err => {
+                    console.error(err);
+                    myChart.setOption({
+                        title: { text: '读取数据失败，请确认CSV文件存在！', left: 'center' }
+                    });
+                });
+        }
+    </script>
+</body>
+</html>
