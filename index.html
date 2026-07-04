@@ -2,7 +2,6 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <!-- 移动端视口声明 -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>设备电量监控看板</title>
     <script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
@@ -26,23 +25,14 @@
             width: 100%; max-width: 900px; height: 450px; background: #fff; 
             border-radius: 8px; box-shadow: 0 2px 12px rgba(0,0,0,0.05); 
         }
-
-        /* Tab 栏样式 */
         .tab-container { width: 100%; max-width: 900px; margin-top: 20px; }
-        .tab-header { 
-            display: flex; 
-            gap: 10px; 
-            margin-bottom: 10px; 
-            flex-wrap: wrap; /* 允许手机端按钮换行 */
-        }
+        .tab-header { display: flex; gap: 10px; margin-bottom: 10px; flex-wrap: wrap; }
         .tab-btn { padding: 8px 20px; border-radius: 20px; font-size: 14px; white-space: nowrap;}
         .tab-content { 
             background: #fff; border-radius: 8px; padding: 20px; 
             box-shadow: 0 2px 12px rgba(0,0,0,0.05); min-height: 150px; 
         }
         .hidden { display: none; }
-
-        /* 统计卡片样式 */
         .stat-card { display: flex; gap: 20px; flex-wrap: wrap; }
         .stat-item { 
             flex: 1; min-width: 150px; padding: 15px; background: #f4f4f5; 
@@ -50,23 +40,18 @@
         }
         .stat-label { font-size: 12px; color: #888; margin-bottom: 5px; }
         .stat-value { font-size: 18px; font-weight: bold; color: #333; word-break: break-all;}
-
-        /* 表格样式 */
         .table-wrapper { overflow-x: auto; }
         table { width: 100%; border-collapse: collapse; font-size: 14px; }
         th, td { padding: 10px; text-align: left; border-bottom: 1px solid #eee; }
         th { background: #fafafa; color: #666; font-weight: 600; }
         tr:hover { background: #f9f9f9; }
 
-        /* 手机端适配 */
         @media screen and (max-width: 600px) {
             body { padding: 10px; }
             .controls { gap: 8px; }
             button { padding: 8px 15px; font-size: 14px; }
             #chart { height: 300px; }
-            
-            /* 手机端卡片强制单列显示，防止挤压 */
-            .stat-item { min-width: 90%; flex: 1 1 100%; }
+            .stat-item { min-width: 100%; flex: 1 1 100%; }
             .tab-btn { padding: 6px 12px; font-size: 12px; }
         }
     </style>
@@ -79,7 +64,6 @@
     </div>
     <div id="chart"></div>
 
-    <!-- Tab 栏区域 -->
     <div class="tab-container">
         <div class="tab-header">
             <button class="tab-btn" onclick="switchTab('stats')">📊 统计</button>
@@ -87,7 +71,6 @@
             <button class="tab-btn active" onclick="switchTab('realtime')">⚡ 实时数据</button>
         </div>
         
-        <!-- 统计面板 -->
         <div id="stats-panel" class="tab-content hidden">
             <div class="stat-card">
                 <div class="stat-item">
@@ -109,7 +92,6 @@
             </div>
         </div>
 
-        <!-- 表格面板 -->
         <div id="table-panel" class="tab-content hidden">
             <div class="table-wrapper">
                 <table>
@@ -121,7 +103,6 @@
             </div>
         </div>
 
-        <!-- 实时数据面板 -->
         <div id="realtime-panel" class="tab-content">
             <div class="stat-card">
                 <div class="stat-item" style="border-left-color: #67c23a;">
@@ -157,12 +138,15 @@
         const chartDom = document.getElementById('chart');
         const myChart = echarts.init(chartDom);
         let currentDevice = '11190261518546';
-        let refreshInterval;
+        let csvRefreshInterval;
 
         window.onload = function() {
             loadChartData(currentDevice);
             loadRealtimeData(currentDevice);
-            refreshInterval = setInterval(() => loadRealtimeData(currentDevice), 30000);
+            setInterval(() => loadRealtimeData(currentDevice), 30000); // 实时数据30秒刷新
+            
+            // 【新增】CSV 数据每 10 分钟自动刷新一次
+            csvRefreshInterval = setInterval(() => loadChartData(currentDevice), 600000); 
         };
 
         function switchDevice(sn) {
@@ -188,7 +172,10 @@
         }
 
         function loadChartData(sn) {
-            fetch(FILES[sn])
+            // 【核心修复】在 URL 后追加时间戳，强制绕过 GitHub Pages 的 CDN 缓存
+            const fileUrl = FILES[sn] + '?t=' + new Date().getTime();
+
+            fetch(fileUrl)
                 .then(res => res.text())
                 .then(csvText => {
                     const lines = csvText.trim().split('\n');
@@ -267,17 +254,15 @@
                 });
         }
 
-        // 加载实时数据 (JSON 解析版)
         function loadRealtimeData(sn) {
             const url = `${API_URL}?keywords=${sn}&type=METER`;
             
             fetch(url)
                 .then(response => {
                     if (!response.ok) throw new Error(`网络响应失败: ${response.status}`);
-                    return response.json(); // 自动解析 JSON
+                    return response.json();
                 })
                 .then(json => {
-                    // 安全提取嵌套数据
                     const list = json?.data?.pmeterDetailFormList;
                     if (list && list.length > 0) {
                         const item = list[0];
