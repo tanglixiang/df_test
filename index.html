@@ -6,40 +6,28 @@
     <title>设备电量监控看板</title>
     <script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
     <style>
-        body { 
-            font-family: Arial, sans-serif; 
-            display: flex; 
-            flex-direction: column; 
-            align-items: center; 
-            padding: 20px; 
-            background: #f9f9f9; 
-            margin: 0; 
-        }
+        body { font-family: Arial, sans-serif; display: flex; flex-direction: column; align-items: center; padding: 20px; background: #f9f9f9; margin: 0; }
         .controls { margin-bottom: 20px; display: flex; align-items: center; gap: 10px; }
-        button { 
-            padding: 10px 20px; font-size: 16px; border-radius: 6px; 
-            border: 1px solid #ccc; cursor: pointer; background: #fff; transition: 0.3s; 
-        }
+        button { padding: 10px 20px; font-size: 16px; border-radius: 6px; border: 1px solid #ccc; cursor: pointer; background: #fff; transition: 0.3s; }
         button.active { background: #409eff; color: #fff; border-color: #409eff; }
-        #chart { 
-            width: 100%; max-width: 900px; height: 450px; background: #fff; 
-            border-radius: 8px; box-shadow: 0 2px 12px rgba(0,0,0,0.05); 
-        }
+        
+        /* 新增筛选按钮样式 */
+        .filter-controls { margin: 10px 0; display: flex; gap: 10px; flex-wrap: wrap; }
+        .filter-btn { padding: 6px 12px; font-size: 14px; border-radius: 4px; border: 1px solid #dcdfe6; background: #f4f4f5; cursor: pointer; color: #606266; }
+        .filter-btn.active { background: #409eff; color: #fff; border-color: #409eff; }
+
+        #chart { width: 100%; max-width: 900px; height: 450px; background: #fff; border-radius: 8px; box-shadow: 0 2px 12px rgba(0,0,0,0.05); }
         .tab-container { width: 100%; max-width: 900px; margin-top: 20px; }
         .tab-header { display: flex; gap: 10px; margin-bottom: 10px; flex-wrap: wrap; }
         .tab-btn { padding: 8px 20px; border-radius: 20px; font-size: 14px; white-space: nowrap;}
-        .tab-content { 
-            background: #fff; border-radius: 8px; padding: 20px; 
-            box-shadow: 0 2px 12px rgba(0,0,0,0.05); min-height: 150px; 
-        }
+        .tab-content { background: #fff; border-radius: 8px; padding: 20px; box-shadow: 0 2px 12px rgba(0,0,0,0.05); min-height: 150px; }
         .hidden { display: none; }
+        
         .stat-card { display: flex; gap: 20px; flex-wrap: wrap; }
-        .stat-item { 
-            flex: 1; min-width: 150px; padding: 15px; background: #f4f4f5; 
-            border-radius: 8px; border-left: 4px solid #409eff; 
-        }
+        .stat-item { flex: 1; min-width: 150px; padding: 15px; background: #f4f4f5; border-radius: 8px; border-left: 4px solid #409eff; }
         .stat-label { font-size: 12px; color: #888; margin-bottom: 5px; }
         .stat-value { font-size: 18px; font-weight: bold; color: #333; word-break: break-all;}
+        
         .table-wrapper { overflow-x: auto; }
         table { width: 100%; border-collapse: collapse; font-size: 14px; }
         th, td { padding: 10px; text-align: left; border-bottom: 1px solid #eee; }
@@ -53,11 +41,11 @@
             #chart { height: 300px; }
             .stat-item { min-width: 90%; flex: 1 1 100%; }
             .tab-btn { padding: 6px 12px; font-size: 12px; }
+            .filter-btn { padding: 6px 10px; font-size: 12px; }
         }
     </style>
 </head>
 <body>
-
     <div class="controls">
         <button id="btn1" class="active" onclick="switchDevice('11190261518546')">设备 1</button>
         <button id="btn2" onclick="switchDevice('11190261518547')">设备 2</button>
@@ -70,7 +58,8 @@
             <button class="tab-btn" onclick="switchTab('table')">📋 表格</button>
             <button class="tab-btn active" onclick="switchTab('realtime')">⚡ 实时数据</button>
         </div>
-        
+
+        <!-- 统计面板 -->
         <div id="stats-panel" class="tab-content hidden">
             <div class="stat-card">
                 <div class="stat-item">
@@ -90,9 +79,28 @@
                     <div class="stat-value" id="stat-change">-</div>
                 </div>
             </div>
+            <!-- 新增：周/月统计 -->
+            <div class="stat-card" style="margin-top: 20px;">
+                <div class="stat-item" style="border-left-color: #909399;">
+                    <div class="stat-label">本周使用电量</div>
+                    <div class="stat-value" id="stat-week-used">-</div>
+                </div>
+                <div class="stat-item" style="border-left-color: #303133;">
+                    <div class="stat-label">本月使用电量</div>
+                    <div class="stat-value" id="stat-month-used">-</div>
+                </div>
+            </div>
         </div>
 
+        <!-- 表格面板 -->
         <div id="table-panel" class="tab-content hidden">
+            <!-- 新增：筛选按钮 -->
+            <div class="filter-controls">
+                <button class="filter-btn active" onclick="switchFilter('all')">全部</button>
+                <button class="filter-btn" onclick="switchFilter('today')">今天</button>
+                <button class="filter-btn" onclick="switchFilter('week')">一周</button>
+                <button class="filter-btn" onclick="switchFilter('month')">一月</button>
+            </div>
             <div class="table-wrapper">
                 <table>
                     <thead>
@@ -103,6 +111,7 @@
             </div>
         </div>
 
+        <!-- 实时数据面板 -->
         <div id="realtime-panel" class="tab-content">
             <div class="stat-card">
                 <div class="stat-item" style="border-left-color: #67c23a;">
@@ -127,160 +136,284 @@
             </div>
         </div>
     </div>
+	<script>
+    const FILES = {
+        '11190261518546': 'device_data/11190261518546.csv',
+        '11190261518547': 'device_data/11190261518547.csv'
+    };
+    const API_URL = 'https://api.zhihuifangdong.net/core/device/deviceIndexMoreMixedTwo';
+    
+    const chartDom = document.getElementById('chart');
+    const myChart = echarts.init(chartDom);
+    
+    let currentDevice = '11190261518546';
+    let csvRefreshInterval;
+    let currentFilter = 'all'; // 当前筛选状态
+    window.rawData = []; // 【优化】全局变量存储解析后的完整数据
 
-    <script>
-        const FILES = {
-            '11190261518546': 'device_data/11190261518546.csv',
-            '11190261518547': 'device_data/11190261518547.csv'
-        };
-        
-        const API_URL = 'https://api.zhihuifangdong.net/core/device/deviceIndexMoreMixedTwo';
-        const chartDom = document.getElementById('chart');
-        const myChart = echarts.init(chartDom);
-        let currentDevice = '11190261518546';
-        let csvRefreshInterval;
+    window.onload = function() {
+        loadChartData(currentDevice);
+        loadRealtimeData(currentDevice);
+        setInterval(() => loadRealtimeData(currentDevice), 30000);
+        csvRefreshInterval = setInterval(() => loadChartData(currentDevice), 600000);
+    };
 
-        window.onload = function() {
-            loadChartData(currentDevice);
-            loadRealtimeData(currentDevice);
-            setInterval(() => loadRealtimeData(currentDevice), 30000); // 实时数据30秒刷新
-            
-            // 【新增】CSV 数据每 10 分钟自动刷新一次
-            csvRefreshInterval = setInterval(() => loadChartData(currentDevice), 600000); 
-        };
+    function switchDevice(sn) {
+        currentDevice = sn;
+        document.getElementById('btn1').className = (sn === '11190261518546') ? 'active' : '';
+        document.getElementById('btn2').className = (sn === '11190261518547') ? 'active' : '';
+        // 切换设备时重置筛选状态
+        currentFilter = 'all';
+        updateFilterButtons();
+        loadChartData(sn);
+        loadRealtimeData(sn);
+    }
 
-        function switchDevice(sn) {
-            currentDevice = sn;
-            document.getElementById('btn1').className = (sn === '11190261518546') ? 'active' : '';
-            document.getElementById('btn2').className = (sn === '11190261518547') ? 'active' : '';
-            loadChartData(sn);
-            loadRealtimeData(sn);
-        }
-
-        function switchTab(tabName) {
-            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
-            document.querySelectorAll('.tab-content').forEach(panel => panel.classList.add('hidden'));
-            
-            const buttons = document.querySelectorAll('.tab-btn');
-            for (let btn of buttons) {
-                if (btn.getAttribute('onclick').includes(tabName)) {
-                    btn.classList.add('active');
-                    break;
-                }
+    function switchTab(tabName) {
+        document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+        document.querySelectorAll('.tab-content').forEach(panel => panel.classList.add('hidden'));
+        const buttons = document.querySelectorAll('.tab-btn');
+        for (let btn of buttons) {
+            if (btn.getAttribute('onclick').includes(tabName)) {
+                btn.classList.add('active');
+                break;
             }
-            document.getElementById(tabName + '-panel').classList.remove('hidden');
         }
+        document.getElementById(tabName + '-panel').classList.remove('hidden');
+    }
 
-        function loadChartData(sn) {
-            // 【核心修复】在 URL 后追加时间戳，强制绕过 GitHub Pages 的 CDN 缓存
-            const fileUrl = FILES[sn] + '?t=' + new Date().getTime();
+    // 【新增】切换筛选条件
+    function switchFilter(filter) {
+        currentFilter = filter;
+        updateFilterButtons();
+        renderData(); // 重新渲染表格、图表和统计
+    }
 
-            fetch(fileUrl)
-                .then(res => res.text())
-                .then(csvText => {
-                    const lines = csvText.trim().split('\n');
-                    const headers = lines[0].split(',');
-                    let data = lines.slice(1).map(line => line.split(','));
-                    
-                    const timeIdx = headers.indexOf('同步时间');
-                    const residualIdx = headers.indexOf('剩余电量');
-                    const usedIdx = headers.indexOf('已使用电量');
-                    
-                    const uniqueMap = new Map();
-                    data.forEach(row => {
-                        if (row[timeIdx]) uniqueMap.set(row[timeIdx], row);
-                    });
-                    
-                    let uniqueData = Array.from(uniqueMap.values());
-                    const last30Data = uniqueData.slice(-30);
-                    
-                    const times = last30Data.map(row => row[timeIdx]);
-                    const residualValues = last30Data.map(row => parseFloat(row[residualIdx]));
-                    const usedValues = last30Data.map(row => parseFloat(row[usedIdx]));
+    // 【新增】更新筛选按钮样式
+    function updateFilterButtons() {
+        const btns = document.querySelectorAll('.filter-btn');
+        btns.forEach(btn => {
+            if (btn.getAttribute('onclick').includes(`'${currentFilter}'`)) {
+                btn.classList.add('active');
+            } else {
+                btn.classList.remove('active');
+            }
+        });
+    }
 
-                    const latestRow = last30Data[last30Data.length - 1];
-                    document.getElementById('stat-time').innerText = latestRow ? latestRow[timeIdx] : '-';
-                    document.getElementById('stat-used').innerText = latestRow ? `${latestRow[usedIdx]}` : '-';
-
-                    if (last30Data.length >= 2) {
-                        const currRow = last30Data[last30Data.length - 1];
-                        const prevRow = last30Data[last30Data.length - 2];
-                        
-                        const timeDiffMs = new Date(currRow[timeIdx]) - new Date(prevRow[timeIdx]);
-                        const diffMins = Math.round(timeDiffMs / 1000 / 60);
-                        document.getElementById('stat-interval').innerText = `${diffMins} 分钟`;
-                        
-                        const currResidual = parseFloat(currRow[residualIdx]);
-                        const prevResidual = parseFloat(prevRow[residualIdx]);
-                        const residualChange = (currResidual - prevResidual).toFixed(2);
-                        
-                        const changeEl = document.getElementById('stat-change');
-                        changeEl.innerText = `${residualChange > 0 ? '+' : ''}${residualChange}`;
-                        changeEl.style.color = residualChange < 0 ? '#f56c6c' : '#67c23a';
-                    } else {
-                        document.getElementById('stat-interval').innerText = '数据不足';
-                        document.getElementById('stat-change').innerText = '数据不足';
-                    }
-
-                    const tbody = document.getElementById('data-table-body');
-                    tbody.innerHTML = '';
-                    [...last30Data].reverse().forEach(row => {
-                        const tr = document.createElement('tr');
-                        tr.innerHTML = `<td>${row[timeIdx]}</td><td>${row[residualIdx]}</td><td>${row[usedIdx]}</td>`;
-                        tbody.appendChild(tr);
-                    });
-
-                    const isMobile = window.innerWidth <= 600;
-                    myChart.setOption({
-                        title: { 
-                            text: `设备趋势 - ${sn} (最近30条)`, 
-                            left: 'center', top: 15, 
-                            textStyle: { fontSize: isMobile ? 14 : 16 } 
-                        },
-                        tooltip: { trigger: 'axis' },
-                        legend: { data: ['剩余电量', '已使用电量'], bottom: 10 },
-                        grid: { left: '3%', right: '4%', bottom: '15%', top: isMobile ? '25%' : '20%', containLabel: true },
-                        xAxis: { type: 'category', data: times, axisLabel: { rotate: 30, fontSize: isMobile ? 10 : 12 } },
-                        yAxis: { type: 'value', name: '电量', nameTextStyle: { fontSize: isMobile ? 10 : 12 } },
-                        series: [
-                            { name: '剩余电量', data: residualValues, type: 'line', smooth: true, areaStyle: { opacity: 0.1 }, itemStyle: { color: '#409eff' } },
-                            { name: '已使用电量', data: usedValues, type: 'line', smooth: true, areaStyle: { opacity: 0.1 }, itemStyle: { color: '#67c23a' } }
-                        ]
-                    });
-                })
-                .catch(err => {
-                    console.error(err);
-                    myChart.setOption({ title: { text: '读取数据失败，请确认CSV文件存在！', left: 'center' } });
-                });
-        }
-
-        function loadRealtimeData(sn) {
-            const url = `${API_URL}?keywords=${sn}&type=METER`;
+    function loadChartData(sn) {
+        const fileUrl = FILES[sn] + '?t=' + new Date().getTime();
+        fetch(fileUrl)
+        .then(res => res.text())
+        .then(csvText => {
+            const lines = csvText.trim().split('\n');
+            const headers = lines[0].split(',');
+            let data = lines.slice(1).map(line => line.split(','));
             
-            fetch(url)
-                .then(response => {
-                    if (!response.ok) throw new Error(`网络响应失败: ${response.status}`);
-                    return response.json();
-                })
-                .then(json => {
-                    const list = json?.data?.pmeterDetailFormList;
-                    if (list && list.length > 0) {
-                        const item = list[0];
-                        document.getElementById('realtime-residual').innerText = item.residualElectricity || '-';
-                        document.getElementById('realtime-voltage').innerText = item.voltage || '-';
-                        document.getElementById('realtime-current').innerText = item.electricity || '-';
-                        document.getElementById('realtime-power').innerText = item.capacity || '-';
-                        document.getElementById('realtime-update-time').innerText = item.gmtResidualElectricity || '-';
-                    } else {
-                        throw new Error("未找到设备数据");
-                    }
-                })
-                .catch(error => {
-                    console.error('获取实时数据失败:', error);
-                    document.getElementById('realtime-residual').innerText = '获取失败';
-                    document.getElementById('realtime-update-time').innerText = 'Error';
-                });
+            const timeIdx = headers.indexOf('同步时间');
+            const residualIdx = headers.indexOf('剩余电量');
+            const usedIdx = headers.indexOf('已使用电量');
+
+            const uniqueMap = new Map();
+            data.forEach(row => {
+                if (row[timeIdx]) uniqueMap.set(row[timeIdx], row);
+            });
+            
+            // 【优化】将解析后的完整数据存入全局变量
+            window.rawData = Array.from(uniqueMap.values());
+            
+            renderData();
+        })
+        .catch(err => {
+            console.error(err);
+            myChart.setOption({
+                title: { text: '读取数据失败，请确认CSV文件存在！', left: 'center' }
+            });
+        });
+    }
+
+    // 【新增】渲染主函数：处理筛选、渲染表格、图表、统计
+    function renderData() {
+        if (!window.rawData || window.rawData.length === 0) return;
+
+        const filteredData = filterData(window.rawData, currentFilter);
+        
+        if (filteredData.length === 0) {
+            document.getElementById('data-table-body').innerHTML = '<tr><td colspan="3" style="text-align:center;">暂无数据</td></tr>';
+            myChart.setOption({ series: [{ data: [] }, { data: [] }], xAxis: { data: [] } });
+            return;
         }
-    </script>
+
+        const timeIdx = 0; // 假设同步时间是第一列
+        const residualIdx = 1; // 假设剩余电量是第二列
+        const usedIdx = 2; // 假设已使用电量是第三列
+
+        // 1. 渲染表格
+        const tbody = document.getElementById('data-table-body');
+        tbody.innerHTML = '';
+        // 表格倒序显示（最新的在上面）
+        [...filteredData].reverse().forEach(row => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `<td>${row[timeIdx]}</td><td>${row[residualIdx]}</td><td>${row[usedIdx]}</td>`;
+            tbody.appendChild(tr);
+        });
+
+        // 2. 渲染图表 (取最近30条)
+        const chartData = filteredData.slice(-30);
+        const times = chartData.map(row => row[timeIdx]);
+        const residualValues = chartData.map(row => parseFloat(row[residualIdx]));
+        const usedValues = chartData.map(row => parseFloat(row[usedIdx]));
+        
+        const isMobile = window.innerWidth <= 600;
+        myChart.setOption({
+            title: { 
+                text: `设备趋势 - ${currentDevice} (${getFilterLabel(currentFilter)})`, 
+                left: 'center', 
+                top: 15, 
+                textStyle: { fontSize: isMobile ? 14 : 16 } 
+            },
+            tooltip: { trigger: 'axis' },
+            legend: { data: ['剩余电量', '已使用电量'], bottom: 10 },
+            grid: { left: '3%', right: '4%', bottom: '15%', top: isMobile ? '25%' : '20%', containLabel: true },
+            xAxis: { 
+                type: 'category', 
+                data: times, 
+                axisLabel: { rotate: 30, fontSize: isMobile ? 10 : 12 } 
+            },
+            yAxis: { 
+                type: 'value', 
+                name: '电量', 
+                nameTextStyle: { fontSize: isMobile ? 10 : 12 } 
+            },
+            series: [
+                { 
+                    name: '剩余电量', 
+                    data: residualValues, 
+                    type: 'line', 
+                    smooth: true, 
+                    areaStyle: { opacity: 0.1 }, 
+                    itemStyle: { color: '#409eff' } 
+                },
+                { 
+                    name: '已使用电量', 
+                    data: usedValues, 
+                    type: 'line', 
+                    smooth: true, 
+                    areaStyle: { opacity: 0.1 }, 
+                    itemStyle: { color: '#67c23a' } 
+                }
+            ]
+        });
+
+        // 3. 更新统计面板
+        updateStats(filteredData);
+    }
+
+    // 【新增】数据筛选逻辑
+    function filterData(data, filter) {
+        const now = new Date();
+        const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        const weekStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() - now.getDay()); // 周日为一周开始
+        const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+
+        return data.filter(row => {
+            const rowTime = new Date(row[0]); // 假设时间在每行第一列
+            if (filter === 'today') return rowTime >= todayStart;
+            if (filter === 'week') return rowTime >= weekStart;
+            if (filter === 'month') return rowTime >= monthStart;
+            return true; // 'all'
+        });
+    }
+
+    // 【新增】获取筛选中文标签
+    function getFilterLabel(filter) {
+        if (filter === 'today') return '今天';
+        if (filter === 'week') return '本周';
+        if (filter === 'month') return '本月';
+        return '最近30条';
+    }
+
+    // 【新增】更新统计面板数据
+    function updateStats(data) {
+        if (!data || data.length === 0) return;
+
+        const timeIdx = 0;
+        const residualIdx = 1;
+        const usedIdx = 2;
+
+        const latestRow = data[data.length - 1];
+        document.getElementById('stat-time').innerText = latestRow ? latestRow[timeIdx] : '-';
+        document.getElementById('stat-used').innerText = latestRow ? `${latestRow[usedIdx]}` : '-';
+
+        // 计算间隔和变化
+        if (data.length >= 2) {
+            const currRow = data[data.length - 1];
+            const prevRow = data[data.length - 2];
+            const timeDiffMs = new Date(currRow[timeIdx]) - new Date(prevRow[timeIdx]);
+            const diffMins = Math.round(timeDiffMs / 1000 / 60);
+            document.getElementById('stat-interval').innerText = `${diffMins} 分钟`;
+
+            const currResidual = parseFloat(currRow[residualIdx]);
+            const prevResidual = parseFloat(prevRow[residualIdx]);
+            const residualChange = (currResidual - prevResidual).toFixed(2);
+            const changeEl = document.getElementById('stat-change');
+            changeEl.innerText = `${residualChange > 0 ? '+' : ''}${residualChange}`;
+            changeEl.style.color = residualChange < 0 ? '#f56c6c' : '#67c23a';
+        } else {
+            document.getElementById('stat-interval').innerText = '数据不足';
+            document.getElementById('stat-change').innerText = '数据不足';
+        }
+
+        // 计算本周和本月用电 (基于全量数据计算，而非筛选后的数据，这样切换筛选时统计更准确)
+        calculatePeriodUsage(window.rawData, 'week', 'stat-week-used');
+        calculatePeriodUsage(window.rawData, 'month', 'stat-month-used');
+    }
+
+    // 【新增】计算周期用电量
+    function calculatePeriodUsage(data, period, elementId) {
+        const now = new Date();
+        let startTime;
+        if (period === 'week') {
+            // 本周一 00:00:00
+            const day = now.getDay() || 7; // 将周日(0)转为7
+            startTime = new Date(now.getFullYear(), now.getMonth(), now.getDate() - day + 1);
+            startTime.setHours(0,0,0,0);
+        } else if (period === 'month') {
+            // 本月1号 00:00:00
+            startTime = new Date(now.getFullYear(), now.getMonth(), 1);
+            startTime.setHours(0,0,0,0);
+        }
+
+        // 筛选出周期内的数据
+        const periodData = data.filter(row => new Date(row[0]) >= startTime);
+
+        const usedIdx = 2;
+        if (periodData.length > 0) {
+            const firstUsed = parseFloat(periodData[0][usedIdx]);
+            const lastUsed = parseFloat(periodData[periodData.length - 1][usedIdx]);
+            const usage = (lastUsed - firstUsed).toFixed(2);
+            document.getElementById(elementId).innerText = `${usage} kWh`;
+        } else {
+            document.getElementById(elementId).innerText = '暂无数据';
+        }
+    }
+
+    // 实时数据加载逻辑保持不变
+    function loadRealtimeData(sn) {
+        fetch(`${API_URL}?sn=${sn}`)
+        .then(res => res.json())
+        .then(json => {
+            if (json.code === 200 && json.data) {
+                const d = json.data;
+                document.getElementById('realtime-residual').innerText = d.residualElectricity || '-';
+                document.getElementById('realtime-voltage').innerText = d.voltage || '-';
+                document.getElementById('realtime-current').innerText = d.current || '-';
+                document.getElementById('realtime-power').innerText = d.power || '-';
+                document.getElementById('realtime-update-time').innerText = d.updateTime || '-';
+            }
+        })
+        .catch(err => console.error(err));
+    }
+</script>
 </body>
 </html>
