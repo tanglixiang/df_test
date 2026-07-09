@@ -115,7 +115,7 @@
         <div id="realtime-panel" class="tab-content">
             <div class="stat-card">
                 <div class="stat-item" style="border-left-color: #67c23a;">
-                    <div class="stat-label">实时剩余电量 (kWh)</div>
+                    <div class="stat-label">实时剩余电量 (度)</div>
                     <div class="stat-value" id="realtime-residual">加载中...</div>
                 </div>
                 <div class="stat-item" style="border-left-color: #409eff;">
@@ -136,7 +136,7 @@
             </div>
         </div>
     </div>
-	<script>
+<script>
     const FILES = {
         '11190261518546': 'device_data/11190261518546.csv',
         '11190261518547': 'device_data/11190261518547.csv'
@@ -148,8 +148,8 @@
     
     let currentDevice = '11190261518546';
     let csvRefreshInterval;
-    let currentFilter = 'all'; // 当前筛选状态
-    window.rawData = []; // 【优化】全局变量存储解析后的完整数据
+    let currentFilter = 'all';
+    window.rawData = []; // 全局变量存储解析后的完整数据，避免重复解析
 
     window.onload = function() {
         loadChartData(currentDevice);
@@ -162,7 +162,6 @@
         currentDevice = sn;
         document.getElementById('btn1').className = (sn === '11190261518546') ? 'active' : '';
         document.getElementById('btn2').className = (sn === '11190261518547') ? 'active' : '';
-        // 切换设备时重置筛选状态
         currentFilter = 'all';
         updateFilterButtons();
         loadChartData(sn);
@@ -182,14 +181,12 @@
         document.getElementById(tabName + '-panel').classList.remove('hidden');
     }
 
-    // 【新增】切换筛选条件
     function switchFilter(filter) {
         currentFilter = filter;
         updateFilterButtons();
-        renderData(); // 重新渲染表格、图表和统计
+        renderData();
     }
 
-    // 【新增】更新筛选按钮样式
     function updateFilterButtons() {
         const btns = document.querySelectorAll('.filter-btn');
         btns.forEach(btn => {
@@ -210,17 +207,21 @@
             const headers = lines[0].split(',');
             let data = lines.slice(1).map(line => line.split(','));
             
+            // 动态获取列索引，确保取值逻辑与您的CSV表头完全一致
             const timeIdx = headers.indexOf('同步时间');
             const residualIdx = headers.indexOf('剩余电量');
             const usedIdx = headers.indexOf('已使用电量');
 
+            // 去重处理
             const uniqueMap = new Map();
             data.forEach(row => {
                 if (row[timeIdx]) uniqueMap.set(row[timeIdx], row);
             });
             
-            // 【优化】将解析后的完整数据存入全局变量
+            // 存入全局变量，后续筛选直接复用，无需重新解析CSV
             window.rawData = Array.from(uniqueMap.values());
+            // 将列索引也存起来，方便后续函数使用
+            window.dataIndexes = { timeIdx, residualIdx, usedIdx };
             
             renderData();
         })
@@ -232,11 +233,11 @@
         });
     }
 
-    // 【新增】渲染主函数：处理筛选、渲染表格、图表、统计
     function renderData() {
         if (!window.rawData || window.rawData.length === 0) return;
 
         const filteredData = filterData(window.rawData, currentFilter);
+        const { timeIdx, residualIdx, usedIdx } = window.dataIndexes;
         
         if (filteredData.length === 0) {
             document.getElementById('data-table-body').innerHTML = '<tr><td colspan="3" style="text-align:center;">暂无数据</td></tr>';
@@ -244,14 +245,9 @@
             return;
         }
 
-        const timeIdx = 0; // 假设同步时间是第一列
-        const residualIdx = 1; // 假设剩余电量是第二列
-        const usedIdx = 2; // 假设已使用电量是第三列
-
         // 1. 渲染表格
         const tbody = document.getElementById('data-table-body');
         tbody.innerHTML = '';
-        // 表格倒序显示（最新的在上面）
         [...filteredData].reverse().forEach(row => {
             const tr = document.createElement('tr');
             tr.innerHTML = `<td>${row[timeIdx]}</td><td>${row[residualIdx]}</td><td>${row[usedIdx]}</td>`;
@@ -309,43 +305,37 @@
         updateStats(filteredData);
     }
 
-    // 【新增】数据筛选逻辑
     function filterData(data, filter) {
         const now = new Date();
         const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-        const weekStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() - now.getDay()); // 周日为一周开始
+        const weekStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() - now.getDay());
         const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
 
         return data.filter(row => {
-            const rowTime = new Date(row[0]); // 假设时间在每行第一列
+            const rowTime = new Date(row[window.dataIndexes.timeIdx]);
             if (filter === 'today') return rowTime >= todayStart;
             if (filter === 'week') return rowTime >= weekStart;
             if (filter === 'month') return rowTime >= monthStart;
-            return true; // 'all'
+            return true;
         });
     }
 
-    // 【新增】获取筛选中文标签
     function getFilterLabel(filter) {
         if (filter === 'today') return '今天';
         if (filter === 'week') return '本周';
         if (filter === 'month') return '本月';
-        return '最近30条';
+        return '全部';
     }
 
-    // 【新增】更新统计面板数据
     function updateStats(data) {
         if (!data || data.length === 0) return;
 
-        const timeIdx = 0;
-        const residualIdx = 1;
-        const usedIdx = 2;
+        const { timeIdx, residualIdx, usedIdx } = window.dataIndexes;
 
         const latestRow = data[data.length - 1];
         document.getElementById('stat-time').innerText = latestRow ? latestRow[timeIdx] : '-';
         document.getElementById('stat-used').innerText = latestRow ? `${latestRow[usedIdx]}` : '-';
 
-        // 计算间隔和变化
         if (data.length >= 2) {
             const currRow = data[data.length - 1];
             const prevRow = data[data.length - 2];
@@ -364,56 +354,63 @@
             document.getElementById('stat-change').innerText = '数据不足';
         }
 
-        // 计算本周和本月用电 (基于全量数据计算，而非筛选后的数据，这样切换筛选时统计更准确)
+        // 周/月统计始终基于全量数据计算，不受表格筛选影响
         calculatePeriodUsage(window.rawData, 'week', 'stat-week-used');
         calculatePeriodUsage(window.rawData, 'month', 'stat-month-used');
     }
 
-    // 【新增】计算周期用电量
     function calculatePeriodUsage(data, period, elementId) {
         const now = new Date();
         let startTime;
         if (period === 'week') {
-            // 本周一 00:00:00
-            const day = now.getDay() || 7; // 将周日(0)转为7
+            const day = now.getDay() || 7;
             startTime = new Date(now.getFullYear(), now.getMonth(), now.getDate() - day + 1);
             startTime.setHours(0,0,0,0);
         } else if (period === 'month') {
-            // 本月1号 00:00:00
             startTime = new Date(now.getFullYear(), now.getMonth(), 1);
             startTime.setHours(0,0,0,0);
         }
 
-        // 筛选出周期内的数据
-        const periodData = data.filter(row => new Date(row[0]) >= startTime);
+        const { timeIdx, usedIdx } = window.dataIndexes;
+        const periodData = data.filter(row => new Date(row[timeIdx]) >= startTime);
 
-        const usedIdx = 2;
         if (periodData.length > 0) {
             const firstUsed = parseFloat(periodData[0][usedIdx]);
             const lastUsed = parseFloat(periodData[periodData.length - 1][usedIdx]);
             const usage = (lastUsed - firstUsed).toFixed(2);
-            document.getElementById(elementId).innerText = `${usage} kWh`;
+            document.getElementById(elementId).innerText = `${usage} 度`;
         } else {
             document.getElementById(elementId).innerText = '暂无数据';
         }
     }
 
-    // 实时数据加载逻辑保持不变
-    function loadRealtimeData(sn) {
-        fetch(`${API_URL}?sn=${sn}`)
-        .then(res => res.json())
-        .then(json => {
-            if (json.code === 200 && json.data) {
-                const d = json.data;
-                document.getElementById('realtime-residual').innerText = d.residualElectricity || '-';
-                document.getElementById('realtime-voltage').innerText = d.voltage || '-';
-                document.getElementById('realtime-current').innerText = d.current || '-';
-                document.getElementById('realtime-power').innerText = d.power || '-';
-                document.getElementById('realtime-update-time').innerText = d.updateTime || '-';
-            }
-        })
-        .catch(err => console.error(err));
-    }
+        function loadRealtimeData(sn) {
+            const url = `${API_URL}?keywords=${sn}&type=METER`;
+            
+            fetch(url)
+                .then(response => {
+                    if (!response.ok) throw new Error(`网络响应失败: ${response.status}`);
+                    return response.json();
+                })
+                .then(json => {
+                    const list = json?.data?.pmeterDetailFormList;
+                    if (list && list.length > 0) {
+                        const item = list[0];
+                        document.getElementById('realtime-residual').innerText = item.residualElectricity || '-';
+                        document.getElementById('realtime-voltage').innerText = item.voltage || '-';
+                        document.getElementById('realtime-current').innerText = item.electricity || '-';
+                        document.getElementById('realtime-power').innerText = item.capacity || '-';
+                        document.getElementById('realtime-update-time').innerText = item.gmtResidualElectricity || '-';
+                    } else {
+                        throw new Error("未找到设备数据");
+                    }
+                })
+                .catch(error => {
+                    console.error('获取实时数据失败:', error);
+                    document.getElementById('realtime-residual').innerText = '获取失败';
+                    document.getElementById('realtime-update-time').innerText = 'Error';
+                });
+        }
 </script>
 </body>
 </html>
