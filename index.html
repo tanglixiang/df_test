@@ -3,414 +3,188 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>设备电量监控看板</title>
-    <script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
-    <style>
-        body { font-family: Arial, sans-serif; display: flex; flex-direction: column; align-items: center; padding: 20px; background: #f9f9f9; margin: 0; }
-        .controls { margin-bottom: 20px; display: flex; align-items: center; gap: 10px; }
-        button { padding: 10px 20px; font-size: 16px; border-radius: 6px; border: 1px solid #ccc; cursor: pointer; background: #fff; transition: 0.3s; }
-        button.active { background: #409eff; color: #fff; border-color: #409eff; }
-        
-        /* 新增筛选按钮样式 */
-        .filter-controls { margin: 10px 0; display: flex; gap: 10px; flex-wrap: wrap; }
-        .filter-btn { padding: 6px 12px; font-size: 14px; border-radius: 4px; border: 1px solid #dcdfe6; background: #f4f4f5; cursor: pointer; color: #606266; }
-        .filter-btn.active { background: #409eff; color: #fff; border-color: #409eff; }
-
-        #chart { width: 100%; max-width: 900px; height: 450px; background: #fff; border-radius: 8px; box-shadow: 0 2px 12px rgba(0,0,0,0.05); }
-        .tab-container { width: 100%; max-width: 900px; margin-top: 20px; }
-        .tab-header { display: flex; gap: 10px; margin-bottom: 10px; flex-wrap: wrap; }
-        .tab-btn { padding: 8px 20px; border-radius: 20px; font-size: 14px; white-space: nowrap;}
-        .tab-content { background: #fff; border-radius: 8px; padding: 20px; box-shadow: 0 2px 12px rgba(0,0,0,0.05); min-height: 150px; }
-        .hidden { display: none; }
-        
-        .stat-card { display: flex; gap: 20px; flex-wrap: wrap; }
-        .stat-item { flex: 1; min-width: 150px; padding: 15px; background: #f4f4f5; border-radius: 8px; border-left: 4px solid #409eff; }
-        .stat-label { font-size: 12px; color: #888; margin-bottom: 5px; }
-        .stat-value { font-size: 18px; font-weight: bold; color: #333; word-break: break-all;}
-        
-        .table-wrapper { overflow-x: auto; }
-        table { width: 100%; border-collapse: collapse; font-size: 14px; }
-        th, td { padding: 10px; text-align: left; border-bottom: 1px solid #eee; }
-        th { background: #fafafa; color: #666; font-weight: 600; }
-        tr:hover { background: #f9f9f9; }
-
-        @media screen and (max-width: 600px) {
-            body { padding: 10px; }
-            .controls { gap: 8px; }
-            button { padding: 8px 15px; font-size: 14px; }
-            #chart { height: 300px; }
-            .stat-item { min-width: 90%; flex: 1 1 100%; }
-            .tab-btn { padding: 6px 12px; font-size: 12px; }
-            .filter-btn { padding: 6px 10px; font-size: 12px; }
-        }
-    </style>
+    <meta name="description" content="家庭电表剩余电量、用电趋势与设备状态看板">
+    <meta name="color-scheme" content="light dark">
+    <title>家庭用电概览</title>
+    <link rel="icon" href="data:,">
+    <link rel="stylesheet" href="assets/styles.css">
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js" defer></script>
+    <script src="assets/app.js" defer></script>
 </head>
 <body>
-    <div class="controls">
-        <button id="btn1" class="active" onclick="switchDevice('11190261518546')">设备 1</button>
-        <button id="btn2" onclick="switchDevice('11190261518547')">设备 2</button>
-    </div>
-    <div id="chart"></div>
+    <a class="skip-link" href="#main-content">跳到主要内容</a>
 
-    <div class="tab-container">
-        <div class="tab-header">
-            <button class="tab-btn" onclick="switchTab('stats')">📊 统计</button>
-            <button class="tab-btn" onclick="switchTab('table')">📋 表格</button>
-            <button class="tab-btn active" onclick="switchTab('realtime')">⚡ 实时数据</button>
+    <header class="topbar">
+        <div class="topbar__inner">
+            <a class="brand" href="./" aria-label="家庭用电概览首页">
+                <span class="brand__mark" aria-hidden="true">E</span>
+                <span>
+                    <strong>家庭用电</strong>
+                    <small>电量监控与趋势</small>
+                </span>
+            </a>
+            <button class="theme-toggle" id="theme-toggle" type="button" aria-label="切换为深色模式">
+                <span id="theme-label">深色模式</span>
+            </button>
         </div>
+    </header>
 
-        <!-- 统计面板 -->
-        <div id="stats-panel" class="tab-content hidden">
-            <div class="stat-card">
-                <div class="stat-item">
-                    <div class="stat-label">最新同步时间</div>
-                    <div class="stat-value" id="stat-time">-</div>
-                </div>
-                <div class="stat-item" style="border-left-color: #67c23a;">
-                    <div class="stat-label">最新已使用电量</div>
-                    <div class="stat-value" id="stat-used">-</div>
-                </div>
-                <div class="stat-item" style="border-left-color: #e6a23c;">
-                    <div class="stat-label">距上次采集间隔</div>
-                    <div class="stat-value" id="stat-interval">-</div>
-                </div>
-                <div class="stat-item" style="border-left-color: #f56c6c;">
-                    <div class="stat-label">剩余电量变化</div>
-                    <div class="stat-value" id="stat-change">-</div>
-                </div>
+    <main id="main-content" class="dashboard" tabindex="-1">
+        <section class="page-heading" aria-labelledby="page-title">
+            <div>
+                <p class="page-heading__eyebrow">用电概览</p>
+                <h1 id="page-title">看清余额，也看懂消耗</h1>
+                <p class="page-heading__summary">集中查看两台电表的剩余电量、历史趋势和实时运行状态。</p>
             </div>
-            <!-- 新增：周/月统计 -->
-            <div class="stat-card" style="margin-top: 20px;">
-                <div class="stat-item" style="border-left-color: #909399;">
-                    <div class="stat-label">本周使用电量</div>
-                    <div class="stat-value" id="stat-week-used">-</div>
-                </div>
-                <div class="stat-item" style="border-left-color: #303133;">
-                    <div class="stat-label">本月使用电量</div>
-                    <div class="stat-value" id="stat-month-used">-</div>
-                </div>
+            <div class="source-status" id="source-status" role="status" aria-live="polite">
+                <span class="status-dot" aria-hidden="true"></span>
+                <span id="source-status-text">正在读取数据</span>
             </div>
-        </div>
+        </section>
 
-        <!-- 表格面板 -->
-        <div id="table-panel" class="tab-content hidden">
-            <!-- 新增：筛选按钮 -->
-            <div class="filter-controls">
-                <button class="filter-btn active" onclick="switchFilter('all')">全部</button>
-                <button class="filter-btn" onclick="switchFilter('today')">今天</button>
-                <button class="filter-btn" onclick="switchFilter('week')">一周</button>
-                <button class="filter-btn" onclick="switchFilter('month')">一月</button>
+        <section class="device-section" aria-labelledby="device-section-title">
+            <div class="section-heading section-heading--compact">
+                <div>
+                    <h2 id="device-section-title">选择设备</h2>
+                    <p>房间名称是主要标识，设备编号仅用于核对。</p>
+                </div>
+                <p class="data-time" id="data-generated-at">数据更新时间: --</p>
             </div>
-            <div class="table-wrapper">
+            <div class="device-tabs" id="device-tabs" role="tablist" aria-label="电表设备"></div>
+        </section>
+
+        <div class="notice" id="notice" role="status" aria-live="polite" hidden></div>
+
+        <section class="metric-grid" aria-label="关键用电指标">
+            <article class="metric metric--primary">
+                <p class="metric__label">剩余电量</p>
+                <p class="metric__value"><span id="metric-residual">--</span><small>度</small></p>
+                <p class="metric__meta" id="metric-residual-meta">等待设备数据</p>
+            </article>
+            <article class="metric">
+                <p class="metric__label">今日用电</p>
+                <p class="metric__value"><span id="metric-today">--</span><small>度</small></p>
+                <p class="metric__meta" id="metric-today-meta">按当天首条记录计算</p>
+            </article>
+            <article class="metric">
+                <p class="metric__label">本周用电</p>
+                <p class="metric__value"><span id="metric-week">--</span><small>度</small></p>
+                <p class="metric__meta">从本周一开始计算</p>
+            </article>
+            <article class="metric">
+                <p class="metric__label">当前功率</p>
+                <p class="metric__value"><span id="metric-power">--</span><small>kW</small></p>
+                <p class="metric__meta" id="metric-power-meta">等待实时数据</p>
+            </article>
+        </section>
+
+        <section class="content-grid" aria-label="趋势与分析">
+            <article class="panel trend-panel">
+                <div class="panel__header">
+                    <div>
+                        <h2>电量趋势</h2>
+                        <p id="trend-subtitle">剩余电量与累计用电</p>
+                    </div>
+                    <div class="segmented" id="range-controls" role="group" aria-label="趋势时间范围">
+                        <button type="button" data-range="today" aria-pressed="false">今天</button>
+                        <button type="button" data-range="7d" class="active" aria-pressed="true">7 天</button>
+                        <button type="button" data-range="30d" aria-pressed="false">30 天</button>
+                        <button type="button" data-range="all" aria-pressed="false">全部</button>
+                    </div>
+                </div>
+                <div class="chart" id="chart" role="img" aria-label="设备电量趋势图">
+                    <div class="chart-placeholder">正在绘制趋势图</div>
+                </div>
+            </article>
+
+            <aside class="panel insight-panel" aria-labelledby="insight-title">
+                <div class="panel__header panel__header--simple">
+                    <div>
+                        <h2 id="insight-title">用电分析</h2>
+                        <p>根据历史记录自动估算</p>
+                    </div>
+                </div>
+                <dl class="insight-list">
+                    <div>
+                        <dt>近 7 天日均</dt>
+                        <dd id="insight-daily-average">--</dd>
+                    </div>
+                    <div>
+                        <dt>预计可用</dt>
+                        <dd id="insight-estimated-days">--</dd>
+                    </div>
+                    <div>
+                        <dt>最近充值</dt>
+                        <dd id="insight-last-recharge">--</dd>
+                    </div>
+                    <div>
+                        <dt>上报间隔</dt>
+                        <dd id="insight-report-interval">--</dd>
+                    </div>
+                </dl>
+            </aside>
+        </section>
+
+        <section class="panel live-panel" aria-labelledby="live-title">
+            <div class="panel__header">
+                <div>
+                    <h2 id="live-title">设备运行状态</h2>
+                    <p id="live-reported-at">最近上报: --</p>
+                </div>
+                <span class="source-badge" id="live-source-badge">历史缓存</span>
+            </div>
+            <dl class="live-grid">
+                <div>
+                    <dt>电压</dt>
+                    <dd><span id="live-voltage">--</span><small>V</small></dd>
+                </div>
+                <div>
+                    <dt>电流</dt>
+                    <dd><span id="live-current">--</span><small>A</small></dd>
+                </div>
+                <div>
+                    <dt>功率</dt>
+                    <dd><span id="live-power">--</span><small>kW</small></dd>
+                </div>
+                <div>
+                    <dt>累计用电</dt>
+                    <dd><span id="live-used">--</span><small>度</small></dd>
+                </div>
+            </dl>
+        </section>
+
+        <section class="panel history-panel" aria-labelledby="history-title">
+            <div class="panel__header">
+                <div>
+                    <h2 id="history-title">历史记录</h2>
+                    <p id="history-count">最近记录</p>
+                </div>
+                <button class="text-button" id="toggle-history" type="button" aria-expanded="false">显示更多</button>
+            </div>
+            <div class="table-wrap">
                 <table>
                     <thead>
-                        <tr><th>同步时间</th><th>剩余电量</th><th>已使用电量</th></tr>
+                        <tr>
+                            <th scope="col">同步时间</th>
+                            <th scope="col">剩余电量</th>
+                            <th scope="col">累计用电</th>
+                            <th scope="col">本次消耗</th>
+                        </tr>
                     </thead>
-                    <tbody id="data-table-body"></tbody>
+                    <tbody id="history-body"></tbody>
                 </table>
             </div>
-        </div>
-
-        <!-- 实时数据面板 -->
-        <div id="realtime-panel" class="tab-content">
-            <div class="stat-card">
-                <div class="stat-item" style="border-left-color: #67c23a;">
-                    <div class="stat-label">实时剩余电量 (度)</div>
-                    <div class="stat-value" id="realtime-residual">加载中...</div>
-                </div>
-                <div class="stat-item" style="border-left-color: #409eff;">
-                    <div class="stat-label">实时电压 (V)</div>
-                    <div class="stat-value" id="realtime-voltage">-</div>
-                </div>
-                <div class="stat-item" style="border-left-color: #e6a23c;">
-                    <div class="stat-label">实时电流 (A)</div>
-                    <div class="stat-value" id="realtime-current">-</div>
-                </div>
-                <div class="stat-item" style="border-left-color: #909399;">
-                    <div class="stat-label">实时功率 (kW)</div>
-                    <div class="stat-value" id="realtime-power">-</div>
-                </div>
+            <div class="empty-state" id="history-empty" hidden>
+                <strong>当前范围暂无记录</strong>
+                <span>请选择更长的时间范围。</span>
             </div>
-            <div style="margin-top: 15px; font-size: 12px; color: #999;">
-                设备上报时间: <span id="realtime-update-time">-</span>
-            </div>
-        </div>
-    </div>
-<script>
-    const FILES = {
-        '11190261518546': 'device_data/11190261518546.csv',
-        '11190261518547': 'device_data/11190261518547.csv'
-    };
-    const API_URL = 'https://api.zhihuifangdong.net/core/device/deviceIndexMoreMixedTwo';
-    
-    const chartDom = document.getElementById('chart');
-    const myChart = echarts.init(chartDom);
-    
-    let currentDevice = '11190261518546';
-    let csvRefreshInterval;
-    let currentFilter = 'all';
-    window.rawData = []; // 全局变量存储解析后的完整数据，避免重复解析
+        </section>
+    </main>
 
-    window.onload = function() {
-        loadChartData(currentDevice);
-        loadRealtimeData(currentDevice);
-        setInterval(() => loadRealtimeData(currentDevice), 30000);
-        csvRefreshInterval = setInterval(() => loadChartData(currentDevice), 600000);
-    };
+    <footer class="footer">
+        <p>数据来自设备上报记录，预测结果仅作日常参考。</p>
+    </footer>
 
-    function switchDevice(sn) {
-        currentDevice = sn;
-        document.getElementById('btn1').className = (sn === '11190261518546') ? 'active' : '';
-        document.getElementById('btn2').className = (sn === '11190261518547') ? 'active' : '';
-        currentFilter = 'all';
-        updateFilterButtons();
-        loadChartData(sn);
-        loadRealtimeData(sn);
-    }
-
-    function switchTab(tabName) {
-        document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
-        document.querySelectorAll('.tab-content').forEach(panel => panel.classList.add('hidden'));
-        const buttons = document.querySelectorAll('.tab-btn');
-        for (let btn of buttons) {
-            if (btn.getAttribute('onclick').includes(tabName)) {
-                btn.classList.add('active');
-                break;
-            }
-        }
-        document.getElementById(tabName + '-panel').classList.remove('hidden');
-    }
-
-    function switchFilter(filter) {
-        currentFilter = filter;
-        updateFilterButtons();
-        renderData();
-    }
-
-    function updateFilterButtons() {
-        const btns = document.querySelectorAll('.filter-btn');
-        btns.forEach(btn => {
-            if (btn.getAttribute('onclick').includes(`'${currentFilter}'`)) {
-                btn.classList.add('active');
-            } else {
-                btn.classList.remove('active');
-            }
-        });
-    }
-
-    function loadChartData(sn) {
-        const fileUrl = FILES[sn] + '?t=' + new Date().getTime();
-        fetch(fileUrl)
-        .then(res => res.text())
-        .then(csvText => {
-            const lines = csvText.trim().split('\n');
-            const headers = lines[0].split(',');
-            let data = lines.slice(1).map(line => line.split(','));
-            
-            // 动态获取列索引，确保取值逻辑与您的CSV表头完全一致
-            const timeIdx = headers.indexOf('同步时间');
-            const residualIdx = headers.indexOf('剩余电量');
-            const usedIdx = headers.indexOf('已使用电量');
-
-            // 去重处理
-            const uniqueMap = new Map();
-            data.forEach(row => {
-                if (row[timeIdx]) uniqueMap.set(row[timeIdx], row);
-            });
-            
-            // 存入全局变量，后续筛选直接复用，无需重新解析CSV
-            window.rawData = Array.from(uniqueMap.values());
-            // 将列索引也存起来，方便后续函数使用
-            window.dataIndexes = { timeIdx, residualIdx, usedIdx };
-            
-            renderData();
-        })
-        .catch(err => {
-            console.error(err);
-            myChart.setOption({
-                title: { text: '读取数据失败，请确认CSV文件存在！', left: 'center' }
-            });
-        });
-    }
-
-    function renderData() {
-        if (!window.rawData || window.rawData.length === 0) return;
-
-        const filteredData = filterData(window.rawData, currentFilter);
-        const { timeIdx, residualIdx, usedIdx } = window.dataIndexes;
-        
-        if (filteredData.length === 0) {
-            document.getElementById('data-table-body').innerHTML = '<tr><td colspan="3" style="text-align:center;">暂无数据</td></tr>';
-            myChart.setOption({ series: [{ data: [] }, { data: [] }], xAxis: { data: [] } });
-            return;
-        }
-
-        // 1. 渲染表格
-        const tbody = document.getElementById('data-table-body');
-        tbody.innerHTML = '';
-        [...filteredData].reverse().forEach(row => {
-            const tr = document.createElement('tr');
-            tr.innerHTML = `<td>${row[timeIdx]}</td><td>${row[residualIdx]}</td><td>${row[usedIdx]}</td>`;
-            tbody.appendChild(tr);
-        });
-
-        // 2. 渲染图表 (取最近30条)
-        const chartData = filteredData.slice(-30);
-        const times = chartData.map(row => row[timeIdx]);
-        const residualValues = chartData.map(row => parseFloat(row[residualIdx]));
-        const usedValues = chartData.map(row => parseFloat(row[usedIdx]));
-        
-        const isMobile = window.innerWidth <= 600;
-        myChart.setOption({
-            title: { 
-                text: `设备趋势 - ${currentDevice} (${getFilterLabel(currentFilter)})`, 
-                left: 'center', 
-                top: 15, 
-                textStyle: { fontSize: isMobile ? 14 : 16 } 
-            },
-            tooltip: { trigger: 'axis' },
-            legend: { data: ['剩余电量', '已使用电量'], bottom: 10 },
-            grid: { left: '3%', right: '4%', bottom: '15%', top: isMobile ? '25%' : '20%', containLabel: true },
-            xAxis: { 
-                type: 'category', 
-                data: times, 
-                axisLabel: { rotate: 30, fontSize: isMobile ? 10 : 12 } 
-            },
-            yAxis: { 
-                type: 'value', 
-                name: '电量', 
-                nameTextStyle: { fontSize: isMobile ? 10 : 12 } 
-            },
-            series: [
-                { 
-                    name: '剩余电量', 
-                    data: residualValues, 
-                    type: 'line', 
-                    smooth: true, 
-                    areaStyle: { opacity: 0.1 }, 
-                    itemStyle: { color: '#409eff' } 
-                },
-                { 
-                    name: '已使用电量', 
-                    data: usedValues, 
-                    type: 'line', 
-                    smooth: true, 
-                    areaStyle: { opacity: 0.1 }, 
-                    itemStyle: { color: '#67c23a' } 
-                }
-            ]
-        });
-
-        // 3. 更新统计面板
-        updateStats(filteredData);
-    }
-
-    function filterData(data, filter) {
-        const now = new Date();
-        const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-        const weekStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() - now.getDay());
-        const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-
-        return data.filter(row => {
-            const rowTime = new Date(row[window.dataIndexes.timeIdx]);
-            if (filter === 'today') return rowTime >= todayStart;
-            if (filter === 'week') return rowTime >= weekStart;
-            if (filter === 'month') return rowTime >= monthStart;
-            return true;
-        });
-    }
-
-    function getFilterLabel(filter) {
-        if (filter === 'today') return '今天';
-        if (filter === 'week') return '本周';
-        if (filter === 'month') return '本月';
-        return '全部';
-    }
-
-    function updateStats(data) {
-        if (!data || data.length === 0) return;
-
-        const { timeIdx, residualIdx, usedIdx } = window.dataIndexes;
-
-        const latestRow = data[data.length - 1];
-        document.getElementById('stat-time').innerText = latestRow ? latestRow[timeIdx] : '-';
-        document.getElementById('stat-used').innerText = latestRow ? `${latestRow[usedIdx]}` : '-';
-
-        if (data.length >= 2) {
-            const currRow = data[data.length - 1];
-            const prevRow = data[data.length - 2];
-            const timeDiffMs = new Date(currRow[timeIdx]) - new Date(prevRow[timeIdx]);
-            const diffMins = Math.round(timeDiffMs / 1000 / 60);
-            document.getElementById('stat-interval').innerText = `${diffMins} 分钟`;
-
-            const currResidual = parseFloat(currRow[residualIdx]);
-            const prevResidual = parseFloat(prevRow[residualIdx]);
-            const residualChange = (currResidual - prevResidual).toFixed(2);
-            const changeEl = document.getElementById('stat-change');
-            changeEl.innerText = `${residualChange > 0 ? '+' : ''}${residualChange}`;
-            changeEl.style.color = residualChange < 0 ? '#f56c6c' : '#67c23a';
-        } else {
-            document.getElementById('stat-interval').innerText = '数据不足';
-            document.getElementById('stat-change').innerText = '数据不足';
-        }
-
-        // 周/月统计始终基于全量数据计算，不受表格筛选影响
-        calculatePeriodUsage(window.rawData, 'week', 'stat-week-used');
-        calculatePeriodUsage(window.rawData, 'month', 'stat-month-used');
-    }
-
-    function calculatePeriodUsage(data, period, elementId) {
-        const now = new Date();
-        let startTime;
-        if (period === 'week') {
-            const day = now.getDay() || 7;
-            startTime = new Date(now.getFullYear(), now.getMonth(), now.getDate() - day + 1);
-            startTime.setHours(0,0,0,0);
-        } else if (period === 'month') {
-            startTime = new Date(now.getFullYear(), now.getMonth(), 1);
-            startTime.setHours(0,0,0,0);
-        }
-
-        const { timeIdx, usedIdx } = window.dataIndexes;
-        const periodData = data.filter(row => new Date(row[timeIdx]) >= startTime);
-
-        if (periodData.length > 0) {
-            const firstUsed = parseFloat(periodData[0][usedIdx]);
-            const lastUsed = parseFloat(periodData[periodData.length - 1][usedIdx]);
-            const usage = (lastUsed - firstUsed).toFixed(2);
-            document.getElementById(elementId).innerText = `${usage} 度`;
-        } else {
-            document.getElementById(elementId).innerText = '暂无数据';
-        }
-    }
-
-        function loadRealtimeData(sn) {
-            const url = `${API_URL}?keywords=${sn}&type=METER`;
-            
-            fetch(url)
-                .then(response => {
-                    if (!response.ok) throw new Error(`网络响应失败: ${response.status}`);
-                    return response.json();
-                })
-                .then(json => {
-                    const list = json?.data?.pmeterDetailFormList;
-                    if (list && list.length > 0) {
-                        const item = list[0];
-                        document.getElementById('realtime-residual').innerText = item.residualElectricity || '-';
-                        document.getElementById('realtime-voltage').innerText = item.voltage || '-';
-                        document.getElementById('realtime-current').innerText = item.electricity || '-';
-                        document.getElementById('realtime-power').innerText = item.capacity || '-';
-                        document.getElementById('realtime-update-time').innerText = item.gmtResidualElectricity || '-';
-                    } else {
-                        throw new Error("未找到设备数据");
-                    }
-                })
-                .catch(error => {
-                    console.error('获取实时数据失败:', error);
-                    document.getElementById('realtime-residual').innerText = '获取失败';
-                    document.getElementById('realtime-update-time').innerText = 'Error';
-                });
-        }
-</script>
+    <noscript>此页面需要启用 JavaScript 才能读取和展示电量数据。</noscript>
 </body>
 </html>
