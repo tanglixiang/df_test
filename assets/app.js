@@ -6,6 +6,10 @@ const state = {
     data: null,
     deviceIndex: 0,
     range: "7d",
+    chartView: "trend",
+    aggregation: "raw",
+    trendAggregation: "raw",
+    consumptionAggregation: "day",
     showAllHistory: false,
     chart: null,
     chartObserver: null,
@@ -21,6 +25,11 @@ const elements = {
     generatedAt: document.getElementById("data-generated-at"),
     notice: document.getElementById("notice"),
     rangeControls: document.getElementById("range-controls"),
+    chartViewControls: document.getElementById("chart-view-controls"),
+    aggregationControls: document.getElementById("aggregation-controls"),
+    trendTitle: document.getElementById("trend-title"),
+    trendSubtitle: document.getElementById("trend-subtitle"),
+    chart: document.getElementById("chart"),
     historyBody: document.getElementById("history-body"),
     historyEmpty: document.getElementById("history-empty"),
     historyCount: document.getElementById("history-count"),
@@ -101,6 +110,115 @@ function recordsInRange(records, range = state.range) {
     const start = rangeStart(range);
     if (!start) return records;
     return records.filter((record) => parseDate(record.syncAt) >= start);
+}
+
+function periodStart(value, aggregation) {
+    const date = value instanceof Date ? new Date(value) : parseDate(value);
+    if (!date) return null;
+    const start = startOfToday(date);
+    if (aggregation === "week") {
+        const weekday = start.getDay() || 7;
+        start.setDate(start.getDate() - weekday + 1);
+    } else if (aggregation === "month") {
+        start.setDate(1);
+    }
+    return start;
+}
+
+function nextPeriodStart(start, aggregation) {
+    const next = new Date(start);
+    if (aggregation === "month") next.setMonth(next.getMonth() + 1, 1);
+    else next.setDate(next.getDate() + (aggregation === "week" ? 7 : 1));
+    return next;
+}
+
+function formatDatePart(date) {
+    return new Intl.DateTimeFormat("zh-CN", { year: "numeric", month: "2-digit", day: "2-digit" })
+        .format(date)
+        .replaceAll("/", "-");
+}
+
+function periodLabels(start, aggregation) {
+    const end = new Date(nextPeriodStart(start, aggregation).getTime() - 1);
+    if (aggregation === "month") {
+        return {
+            axis: `${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, "0")}`,
+            tooltip: `${start.getFullYear()} 年 ${start.getMonth() + 1} 月`,
+        };
+    }
+    if (aggregation === "week") {
+        return {
+            axis: `${String(start.getMonth() + 1).padStart(2, "0")}-${String(start.getDate()).padStart(2, "0")} 周`,
+            tooltip: `${formatDatePart(start)} 至 ${formatDatePart(end)}`,
+        };
+    }
+    return {
+        axis: `${String(start.getMonth() + 1).padStart(2, "0")}-${String(start.getDate()).padStart(2, "0")}`,
+        tooltip: formatDatePart(start),
+    };
+}
+
+function groupedPeriods(records, aggregation) {
+    const groups = new Map();
+    records.forEach((record) => {
+        const start = periodStart(record.syncAt, aggregation);
+        if (!start) return;
+        const key = start.getTime();
+        if (!groups.has(key)) {
+            groups.set(key, {
+                start,
+                end: nextPeriodStart(start, aggregation),
+                records: [],
+                ...periodLabels(start, aggregation),
+            });
+        }
+        groups.get(key).records.push(record);
+    });
+    return [...groups.values()].sort((a, b) => a.start - b.start);
+}
+
+function trendChartData(records) {
+    const filtered = recordsInRange(records);
+    if (state.aggregation === "raw") {
+        return filtered.map((record) => ({
+            record,
+            axis: record.syncAt,
+            tooltip: formatDateTime(record.syncAt),
+        }));
+    }
+    return groupedPeriods(filtered, state.aggregation).map((period) => ({
+        record: period.records.at(-1),
+        axis: period.axis,
+        tooltip: period.tooltip,
+    }));
+}
+
+function consumptionChartData(records) {
+    const filtered = recordsInRange(records);
+    const visiblePeriods = groupedPeriods(filtered, state.aggregation);
+    const now = new Date();
+
+    return visiblePeriods.map((period) => {
+        const periodRecords = records.filter((record) => {
+            const time = parseDate(record.syncAt);
+            return time >= period.start && time < period.end;
+        });
+        const baseline = records.filter((record) => parseDate(record.syncAt) <= period.start).at(-1);
+        const first = periodRecords[0];
+        const last = periodRecords.at(-1);
+        const origin = baseline || first;
+        const difference = origin && last ? Number(last.used) - Number(origin.used) : null;
+        const usage = Number.isFinite(difference) && difference >= 0 && (baseline || origin !== last) ? difference : null;
+
+        return {
+            ...period,
+            usage,
+            observedFrom: origin?.syncAt || null,
+            observedTo: last?.syncAt || null,
+            partialStart: !baseline,
+            ongoing: period.end > now,
+        };
+    });
 }
 
 function usageBetween(records, start, end = new Date()) {
@@ -315,28 +433,28 @@ function chartColors() {
 }
 
 function renderChart(records) {
-    const chartElement = document.getElementById("chart");
-    const filtered = recordsInRange(records);
     const colors = chartColors();
+    const isConsumption = state.chartView === "consumption";
+    const data = isConsumption ? consumptionChartData(records) : trendChartData(records);
 
     if (!window.echarts) {
-        chartElement.innerHTML = '<div class="chart-placeholder">图表组件加载失败，请检查网络后刷新页面</div>';
+        elements.chart.innerHTML = '<div class="chart-placeholder">图表组件加载失败，请检查网络后刷新页面</div>';
         return;
     }
 
     if (!state.chart) {
-        chartElement.replaceChildren();
-        state.chart = window.echarts.init(chartElement);
+        elements.chart.replaceChildren();
+        state.chart = window.echarts.init(elements.chart);
         state.chartObserver = new ResizeObserver(() => state.chart?.resize());
-        state.chartObserver.observe(chartElement);
+        state.chartObserver.observe(elements.chart);
     }
 
-    if (!filtered.length) {
+    if (!data.length || (isConsumption && data.every((item) => item.usage === null))) {
         state.chart.clear();
         state.chart.setOption({
             title: {
-                text: "当前范围暂无数据",
-                subtext: "请选择更长的时间范围",
+                text: isConsumption ? "当前范围无法计算用量" : "当前范围暂无数据",
+                subtext: isConsumption ? "至少需要两个累计用电采集点" : "请选择更长的时间范围",
                 left: "center",
                 top: "middle",
                 textStyle: { color: colors.text, fontSize: 15, fontWeight: 600 },
@@ -347,11 +465,80 @@ function renderChart(records) {
     }
 
     const isMobile = window.innerWidth <= 600;
-    const axisDates = filtered.map((record) => record.syncAt);
-    const showSymbols = filtered.length <= 36;
+    const animationDuration = window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : 350;
+
+    if (isConsumption) {
+        state.chart.setOption({
+            animationDuration,
+            backgroundColor: "transparent",
+            color: [colors.accent],
+            tooltip: {
+                trigger: "axis",
+                axisPointer: { type: "shadow", shadowStyle: { color: colors.border, opacity: 0.26 } },
+                backgroundColor: colors.surface,
+                borderColor: colors.border,
+                textStyle: { color: colors.text, fontSize: 12 },
+                formatter(params) {
+                    const item = data[params[0]?.dataIndex ?? 0];
+                    if (!item) return "";
+                    const status = item.ongoing ? "（进行中）" : item.partialStart ? "（数据覆盖不完整）" : "";
+                    const lines = [item.tooltip + status];
+                    lines.push(`${params[0]?.marker || ""}周期用电: ${formatNumber(item.usage, 2)} 度`);
+                    if (item.observedFrom && item.observedTo) {
+                        lines.push(`计算区间: ${formatDateTime(item.observedFrom, true)} 至 ${formatDateTime(item.observedTo, true)}`);
+                    }
+                    return lines.join("<br>");
+                },
+            },
+            legend: { show: false },
+            grid: {
+                left: isMobile ? 4 : 6,
+                right: isMobile ? 4 : 6,
+                top: 28,
+                bottom: 4,
+                containLabel: true,
+            },
+            xAxis: {
+                type: "category",
+                data: data.map((item) => item.axis),
+                axisLine: { lineStyle: { color: colors.border } },
+                axisTick: { show: false },
+                axisLabel: {
+                    color: colors.muted,
+                    fontSize: 10,
+                    hideOverlap: true,
+                    margin: 12,
+                },
+            },
+            yAxis: {
+                type: "value",
+                name: "用电量（度）",
+                min: 0,
+                nameTextStyle: { color: colors.muted, fontSize: 10, padding: [0, 0, 0, 8] },
+                axisLabel: { color: colors.muted, fontSize: 10 },
+                splitLine: { lineStyle: { color: colors.border, type: "dashed" } },
+            },
+            series: [{
+                name: "周期用电",
+                type: "bar",
+                data: data.map((item) => item.usage),
+                barMaxWidth: 42,
+                itemStyle: {
+                    color: colors.accent,
+                    borderRadius: [6, 6, 2, 2],
+                },
+                emphasis: {
+                    itemStyle: { color: colors.accent },
+                },
+            }],
+        }, true);
+        return;
+    }
+
+    const showSymbols = data.length <= 36;
 
     state.chart.setOption({
-        animationDuration: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : 350,
+        animationDuration,
         backgroundColor: "transparent",
         color: [colors.accent, colors.success],
         tooltip: {
@@ -361,7 +548,7 @@ function renderChart(records) {
             textStyle: { color: colors.text, fontSize: 12 },
             formatter(params) {
                 const index = params[0]?.dataIndex ?? 0;
-                const lines = [formatDateTime(filtered[index]?.syncAt)];
+                const lines = [data[index]?.tooltip || ""];
                 params.forEach((item) => lines.push(`${item.marker}${item.seriesName}: ${formatNumber(item.value, 2)} 度`));
                 return lines.join("<br>");
             },
@@ -383,7 +570,7 @@ function renderChart(records) {
         xAxis: {
             type: "category",
             boundaryGap: false,
-            data: axisDates,
+            data: data.map((item) => item.axis),
             axisLine: { lineStyle: { color: colors.border } },
             axisTick: { show: false },
             axisLabel: {
@@ -392,6 +579,7 @@ function renderChart(records) {
                 hideOverlap: true,
                 margin: 12,
                 formatter(value) {
+                    if (state.aggregation !== "raw") return value;
                     const date = parseDate(value);
                     if (!date) return "";
                     return state.range === "today"
@@ -421,7 +609,7 @@ function renderChart(records) {
                 name: "剩余电量",
                 type: "line",
                 yAxisIndex: 0,
-                data: filtered.map((record) => Number(record.residual)),
+                data: data.map((item) => Number(item.record.residual)),
                 smooth: 0.18,
                 showSymbol: showSymbols,
                 symbolSize: 5,
@@ -433,7 +621,7 @@ function renderChart(records) {
                 name: "累计用电",
                 type: "line",
                 yAxisIndex: 1,
-                data: filtered.map((record) => Number(record.used)),
+                data: data.map((item) => Number(item.record.used)),
                 smooth: 0.18,
                 showSymbol: showSymbols,
                 symbolSize: 5,
@@ -444,6 +632,22 @@ function renderChart(records) {
     }, true);
 }
 
+function aggregationName(aggregation) {
+    return { raw: "原始记录", day: "每日", week: "每周", month: "每月" }[aggregation] || "";
+}
+
+function updateChartHeading(device) {
+    const roomName = device.roomName || device.shortName;
+    const isConsumption = state.chartView === "consumption";
+    elements.trendTitle.textContent = isConsumption ? "用量变化" : "电量趋势";
+    elements.trendSubtitle.textContent = isConsumption
+        ? `${roomName}，${aggregationName(state.aggregation)}用电消耗`
+        : state.aggregation === "raw"
+            ? `${roomName}，剩余电量与累计用电`
+            : `${roomName}，${aggregationName(state.aggregation)}期末电量`;
+    elements.chart.setAttribute("aria-label", isConsumption ? "设备周期用电量柱状图" : "设备电量趋势折线图");
+}
+
 function renderDashboard() {
     const device = currentDevice();
     if (!device) return;
@@ -452,8 +656,8 @@ function renderDashboard() {
     renderInsights(records);
     renderLive(device, records);
     renderHistory(records);
+    updateChartHeading(device);
     renderChart(records);
-    setText("trend-subtitle", `${device.roomName || device.shortName}，剩余电量与累计用电`);
 }
 
 async function refreshRealtime() {
@@ -542,6 +746,49 @@ function setupTheme() {
     });
 }
 
+function setActiveControl(container, selector, activeValue) {
+    container.querySelectorAll(selector).forEach((button) => {
+        const value = button.dataset.view || button.dataset.aggregation || button.dataset.range;
+        const active = value === activeValue;
+        button.classList.toggle("active", active);
+        button.setAttribute("aria-pressed", String(active));
+    });
+}
+
+function syncAggregationControls() {
+    const rawButton = elements.aggregationControls.querySelector('[data-aggregation="raw"]');
+    rawButton.hidden = state.chartView === "consumption";
+    setActiveControl(elements.aggregationControls, "button[data-aggregation]", state.aggregation);
+}
+
+elements.chartViewControls.addEventListener("click", (event) => {
+    const button = event.target.closest("button[data-view]");
+    if (!button || button.dataset.view === state.chartView) return;
+    state.chartView = button.dataset.view;
+    state.aggregation = state.chartView === "consumption" ? state.consumptionAggregation : state.trendAggregation;
+    setActiveControl(elements.chartViewControls, "button[data-view]", state.chartView);
+    syncAggregationControls();
+    const device = currentDevice();
+    if (device) {
+        updateChartHeading(device);
+        renderChart(sortedRecords(device));
+    }
+});
+
+elements.aggregationControls.addEventListener("click", (event) => {
+    const button = event.target.closest("button[data-aggregation]");
+    if (!button || button.hidden || button.dataset.aggregation === state.aggregation) return;
+    state.aggregation = button.dataset.aggregation;
+    if (state.chartView === "consumption") state.consumptionAggregation = state.aggregation;
+    else state.trendAggregation = state.aggregation;
+    syncAggregationControls();
+    const device = currentDevice();
+    if (device) {
+        updateChartHeading(device);
+        renderChart(sortedRecords(device));
+    }
+});
+
 elements.rangeControls.addEventListener("click", (event) => {
     const button = event.target.closest("button[data-range]");
     if (!button) return;
@@ -549,11 +796,7 @@ elements.rangeControls.addEventListener("click", (event) => {
     state.showAllHistory = false;
     elements.toggleHistory.setAttribute("aria-expanded", "false");
     elements.toggleHistory.textContent = "显示更多";
-    elements.rangeControls.querySelectorAll("button").forEach((candidate) => {
-        const active = candidate === button;
-        candidate.classList.toggle("active", active);
-        candidate.setAttribute("aria-pressed", String(active));
-    });
+    setActiveControl(elements.rangeControls, "button[data-range]", state.range);
     renderDashboard();
 });
 

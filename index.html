@@ -82,14 +82,32 @@
             <article class="panel trend-panel">
                 <div class="panel__header">
                     <div>
-                        <h2>电量趋势</h2>
+                        <h2 id="trend-title">电量趋势</h2>
                         <p id="trend-subtitle">剩余电量与累计用电</p>
                     </div>
-                    <div class="segmented" id="range-controls" role="group" aria-label="趋势时间范围">
-                        <button type="button" data-range="today" aria-pressed="false">今天</button>
-                        <button type="button" data-range="7d" class="active" aria-pressed="true">7 天</button>
-                        <button type="button" data-range="30d" aria-pressed="false">30 天</button>
-                        <button type="button" data-range="all" aria-pressed="false">全部</button>
+                    <div class="segmented view-switch" id="chart-view-controls" role="group" aria-label="图表视图">
+                        <button type="button" data-view="trend" class="active" aria-pressed="true">电量趋势</button>
+                        <button type="button" data-view="consumption" aria-pressed="false">用量变化</button>
+                    </div>
+                </div>
+                <div class="chart-controls" aria-label="图表筛选条件">
+                    <div class="chart-control-group">
+                        <span class="chart-control-label">时间范围</span>
+                        <div class="segmented" id="range-controls" role="group" aria-label="趋势时间范围">
+                            <button type="button" data-range="today" aria-pressed="false">今天</button>
+                            <button type="button" data-range="7d" class="active" aria-pressed="true">7 天</button>
+                            <button type="button" data-range="30d" aria-pressed="false">30 天</button>
+                            <button type="button" data-range="all" aria-pressed="false">全部</button>
+                        </div>
+                    </div>
+                    <div class="chart-control-group">
+                        <span class="chart-control-label">聚合粒度</span>
+                        <div class="segmented" id="aggregation-controls" role="group" aria-label="图表聚合粒度">
+                            <button type="button" data-aggregation="raw" class="active" aria-pressed="true">原始</button>
+                            <button type="button" data-aggregation="day" aria-pressed="false">按天</button>
+                            <button type="button" data-aggregation="week" aria-pressed="false">按周</button>
+                            <button type="button" data-aggregation="month" aria-pressed="false">按月</button>
+                        </div>
                     </div>
                 </div>
                 <div class="chart" id="chart" role="img" aria-label="设备电量趋势图">
